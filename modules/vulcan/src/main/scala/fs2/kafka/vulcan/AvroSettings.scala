@@ -10,6 +10,7 @@ import cats.effect.Sync
 import cats.implicits._
 import fs2.kafka.internal.converters.collection._
 import fs2.kafka.internal.syntax._
+import fs2.kafka.{HasProperties, PropertiesUpdater}
 
 /**
   * Describes how to create a `KafkaAvroDeserializer` and a
@@ -19,7 +20,7 @@ import fs2.kafka.internal.syntax._
   *
   * Use `AvroSettings.apply` to create an instance.
   */
-sealed abstract class AvroSettings[F[_]] {
+sealed abstract class AvroSettings[F[_]] extends HasProperties[AvroSettings[F]] {
 
   /**
     * The `SchemaRegistryClient` to use for the serializers
@@ -128,7 +129,8 @@ object AvroSettings {
     val createAvroDeserializerWith: (F[SchemaRegistryClient], Boolean, Map[String, String]) => F[(KafkaAvroDeserializer, SchemaRegistryClient)],
     val createAvroSerializerWith: (F[SchemaRegistryClient], Boolean, Map[String, String]) => F[(KafkaAvroSerializer, SchemaRegistryClient)]
     // format: on
-  ) extends AvroSettings[F] {
+  ) extends AvroSettings[F]
+      with PropertiesUpdater[AvroSettings[F]] {
     override def withAutoRegisterSchemas(autoRegisterSchemas: Boolean): AvroSettings[F] =
       withProperty("auto.register.schemas", autoRegisterSchemas.toString)
 
@@ -142,14 +144,9 @@ object AvroSettings {
     ): AvroSettings[F] =
       withProperty("value.subject.name.strategy", valueSubjectNameStrategy)
 
-    override def withProperty(key: String, value: String): AvroSettings[F] =
-      copy(properties = properties.updated(key, value))
-
-    override def withProperties(properties: (String, String)*): AvroSettings[F] =
-      copy(properties = this.properties ++ properties.toMap)
-
-    override def withProperties(properties: Map[String, String]): AvroSettings[F] =
-      copy(properties = this.properties ++ properties)
+    override protected def updateProperties(
+      f: Map[String, String] => Map[String, String]
+    ): AvroSettings[F] = copy(properties = f(properties))
 
     override def createAvroDeserializer(
       isKey: Boolean

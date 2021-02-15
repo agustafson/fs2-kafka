@@ -10,6 +10,7 @@ import cats.effect.{Blocker, Sync}
 import cats.Show
 import fs2.kafka.internal.converters.collection._
 import org.apache.kafka.clients.admin.{AdminClient, AdminClientConfig}
+
 import scala.concurrent.duration._
 
 /**
@@ -25,7 +26,7 @@ import scala.concurrent.duration._
   * Use [[AdminClientSettings#apply]] for the default settings, and
   * then apply any desired modifications on top of that instance.
   */
-sealed abstract class AdminClientSettings[F[_]] {
+sealed abstract class AdminClientSettings[F[_]] extends HasProperties[AdminClientSettings[F]] {
 
   /**
     * The `Blocker` to use for blocking Kafka operations. If not
@@ -209,7 +210,9 @@ object AdminClientSettings {
     override val properties: Map[String, String],
     override val closeTimeout: FiniteDuration,
     val createAdminClientWith: Map[String, String] => F[AdminClient]
-  ) extends AdminClientSettings[F] {
+  ) extends AdminClientSettings[F]
+      with PropertiesUpdater[AdminClientSettings[F]] {
+
     override def withBlocker(blocker: Blocker): AdminClientSettings[F] =
       copy(blocker = Some(blocker))
 
@@ -253,14 +256,9 @@ object AdminClientSettings {
     override def withRetries(retries: Int): AdminClientSettings[F] =
       withProperty(AdminClientConfig.RETRIES_CONFIG, retries.toString)
 
-    override def withProperty(key: String, value: String): AdminClientSettings[F] =
-      copy(properties = properties.updated(key, value))
-
-    override def withProperties(properties: (String, String)*): AdminClientSettings[F] =
-      copy(properties = this.properties ++ properties.toMap)
-
-    override def withProperties(properties: Map[String, String]): AdminClientSettings[F] =
-      copy(properties = this.properties ++ properties)
+    override protected def updateProperties(
+      f: Map[String, String] => Map[String, String]
+    ): AdminClientSettingsImpl[F] = copy(properties = f(properties))
 
     override def withCloseTimeout(closeTimeout: FiniteDuration): AdminClientSettings[F] =
       copy(closeTimeout = closeTimeout)

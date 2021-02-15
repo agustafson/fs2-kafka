@@ -35,7 +35,8 @@ import scala.concurrent.duration._
   * <br>
   * Use `ConsumerSettings#apply` to create a new instance.
   */
-sealed abstract class ConsumerSettings[F[_], K, V] {
+sealed abstract class ConsumerSettings[F[_], K, V]
+    extends HasProperties[ConsumerSettings[F, K, V]] {
 
   /**
     * The `Deserializer` to use for deserializing record keys.
@@ -413,7 +414,8 @@ object ConsumerSettings {
     override val recordMetadata: ConsumerRecord[K, V] => String,
     override val maxPrefetchBatches: Int,
     val createConsumerWith: Map[String, String] => F[KafkaByteConsumer]
-  ) extends ConsumerSettings[F, K, V] {
+  ) extends ConsumerSettings[F, K, V]
+      with PropertiesUpdater[ConsumerSettings[F, K, V]] {
     override def withBlocker(blocker: Blocker): ConsumerSettings[F, K, V] =
       copy(blocker = Some(blocker))
 
@@ -495,14 +497,9 @@ object ConsumerSettings {
     override def withClientRack(clientRack: String): ConsumerSettings[F, K, V] =
       withProperty(ConsumerConfig.CLIENT_RACK_CONFIG, clientRack)
 
-    override def withProperty(key: String, value: String): ConsumerSettings[F, K, V] =
-      copy(properties = properties.updated(key, value))
-
-    override def withProperties(properties: (String, String)*): ConsumerSettings[F, K, V] =
-      copy(properties = this.properties ++ properties.toMap)
-
-    override def withProperties(properties: Map[String, String]): ConsumerSettings[F, K, V] =
-      copy(properties = this.properties ++ properties)
+    override protected def updateProperties(
+      f: Map[String, String] => Map[String, String]
+    ): ConsumerSettings[F, K, V] = copy(properties = f(properties))
 
     override def withCloseTimeout(closeTimeout: FiniteDuration): ConsumerSettings[F, K, V] =
       copy(closeTimeout = closeTimeout)

@@ -26,7 +26,8 @@ import scala.concurrent.duration._
   * <br>
   * Use `ProducerSettings#apply` to create a new instance.
   */
-sealed abstract class ProducerSettings[F[_], K, V] {
+sealed abstract class ProducerSettings[F[_], K, V]
+    extends HasProperties[ProducerSettings[F, K, V]] {
 
   /**
     * The `Serializer` to use for serializing record keys.
@@ -250,7 +251,9 @@ object ProducerSettings {
     override val closeTimeout: FiniteDuration,
     override val parallelism: Int,
     val createProducerWith: Map[String, String] => F[KafkaByteProducer]
-  ) extends ProducerSettings[F, K, V] {
+  ) extends ProducerSettings[F, K, V]
+      with PropertiesUpdater[ProducerSettings[F, K, V]] {
+
     override def withBlocker(blocker: Blocker): ProducerSettings[F, K, V] =
       copy(blocker = Some(blocker))
 
@@ -293,14 +296,9 @@ object ProducerSettings {
     override def withDeliveryTimeout(deliveryTimeout: FiniteDuration): ProducerSettings[F, K, V] =
       withProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, deliveryTimeout.toMillis.toString)
 
-    override def withProperty(key: String, value: String): ProducerSettings[F, K, V] =
-      copy(properties = properties.updated(key, value))
-
-    override def withProperties(properties: (String, String)*): ProducerSettings[F, K, V] =
-      copy(properties = this.properties ++ properties.toMap)
-
-    override def withProperties(properties: Map[String, String]): ProducerSettings[F, K, V] =
-      copy(properties = this.properties ++ properties)
+    override protected def updateProperties(
+      f: Map[String, String] => Map[String, String]
+    ): ProducerSettings[F, K, V] = copy(properties = f(properties))
 
     override def withCloseTimeout(closeTimeout: FiniteDuration): ProducerSettings[F, K, V] =
       copy(closeTimeout = closeTimeout)

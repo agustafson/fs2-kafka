@@ -9,6 +9,7 @@ package fs2.kafka.vulcan
 import cats.effect.Sync
 import cats.Show
 import fs2.kafka.internal.converters.collection._
+import fs2.kafka.{HasProperties, PropertiesUpdater}
 
 /**
   * Describes how to create a `SchemaRegistryClient` and which
@@ -17,7 +18,8 @@ import fs2.kafka.internal.converters.collection._
   *
   * Use `SchemaRegistryClient#apply` to create an instance.
   */
-sealed abstract class SchemaRegistryClientSettings[F[_]] {
+sealed abstract class SchemaRegistryClientSettings[F[_]]
+    extends HasProperties[SchemaRegistryClientSettings[F]] {
 
   /**
     * The base URL of the schema registry service.
@@ -93,7 +95,8 @@ object SchemaRegistryClientSettings {
     // format: off
     val createSchemaRegistryClientWith: (String, Int, Map[String, String]) => F[SchemaRegistryClient]
     // format: on
-  ) extends SchemaRegistryClientSettings[F] {
+  ) extends SchemaRegistryClientSettings[F]
+      with PropertiesUpdater[SchemaRegistryClientSettings[F]] {
     override def withMaxCacheSize(maxCacheSize: Int): SchemaRegistryClientSettings[F] =
       copy(maxCacheSize = maxCacheSize)
 
@@ -115,14 +118,9 @@ object SchemaRegistryClientSettings {
           this
       }
 
-    override def withProperty(key: String, value: String): SchemaRegistryClientSettings[F] =
-      copy(properties = properties.updated(key, value))
-
-    override def withProperties(properties: (String, String)*): SchemaRegistryClientSettings[F] =
-      copy(properties = this.properties ++ properties.toMap)
-
-    override def withProperties(properties: Map[String, String]): SchemaRegistryClientSettings[F] =
-      copy(properties = this.properties ++ properties)
+    override protected def updateProperties(
+      f: Map[String, String] => Map[String, String]
+    ): SchemaRegistryClientSettings[F] = copy(properties = f(properties))
 
     override def createSchemaRegistryClient: F[SchemaRegistryClient] =
       createSchemaRegistryClientWith(baseUrl, maxCacheSize, properties)
